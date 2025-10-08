@@ -1,0 +1,5 @@
+# Abaikan file environment
+.env
+
+# Abaikan dependensi Node.js
+node_modules/
