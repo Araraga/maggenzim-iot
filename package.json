@@ -10,10 +10,11 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "mqtt": "^5.14.1",
     "pg": "^8.16.3",
-    "twilio": "^5.10.2"
+    "twilio": "^5.10.4"
   }
 }
