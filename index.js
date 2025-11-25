@@ -44,17 +44,47 @@ mqttClient.on("connect", () => {
 });
 
 // Fungsi ini berjalan setiap kali data sensor masuk
+// [BAGIAN INI YANG HARUS DIGANTI DENGAN KODE DI BAWAH]
 mqttClient.on("message", async (topic, message) => {
   try {
-    const deviceId = topic.split("/")[1];
-    const data = JSON.parse(message.toString());
+    const deviceId = topic.split("/")[1]; // Ambil ID dari topik
 
-    console.log(`📥 Menerima data dari ${deviceId}:`, data);
+    // --- [PERBAIKAN PENTING DI SINI] ---
+    // Parse data, menangani format Array [...] atau Objek {...}
+    let rawData = JSON.parse(message.toString());
+    let data;
+    if (Array.isArray(rawData) && rawData.length > 0) {
+      data = rawData[0]; // Ambil item pertama jika array
+    } else if (typeof rawData === "object" && rawData !== null) {
+      data = rawData; // Gunakan langsung jika objek
+    } else {
+      console.error(`⚠️ Format data dari ${deviceId} tidak dikenali.`);
+      return;
+    }
 
-    // 1. Simpan data ke database
+    // Validasi kelengkapan data (gunakan nama field yang sesuai dengan pengiriman alat)
+    // Pastikan alat mengirim 'gas_ppm' atau 'amonia', sesuaikan pengecekan di sini
+    if (
+      !data ||
+      data.temperature === undefined ||
+      (data.gas_ppm === undefined && data.amonia === undefined)
+    ) {
+      console.error(`⚠️ Data dari ${deviceId} tidak lengkap.`);
+      return;
+    }
+    // ----------------------------------
+
+    // Normalisasi nama field gas (jika alat kirim 'amonia', kita pakai sebagai 'gas_ppm')
+    const gasValue = data.gas_ppm !== undefined ? data.gas_ppm : data.amonia;
+
+    console.log(
+      `📥 Menerima data dari ${deviceId}: Suhu=${data.temperature}, Gas=${gasValue}`
+    );
+
+    // 1. Simpan data ke database Neon
     await pool.query(
       "INSERT INTO sensor_data(device_id, temperature, humidity, gas_ppm) VALUES($1, $2, $3, $4)",
-      [deviceId, data.temperature, data.humidity, data.gas_ppm]
+      [deviceId, data.temperature, data.humidity, gasValue]
     );
 
     // 2. Cek apakah perangkat terdaftar untuk notifikasi
@@ -71,10 +101,10 @@ mqttClient.on("message", async (topic, message) => {
       alertMessage = `PERINGATAN! Suhu di ${
         device.device_name || deviceId
       } mencapai ${data.temperature}°C.`;
-    } else if (data.gas_ppm > device.threshold_gas) {
+    } else if (gasValue > device.threshold_gas) {
       alertMessage = `PERINGATAN! Kadar gas di ${
         device.device_name || deviceId
-      } mencapai ${data.gas_ppm} PPM.`;
+      } mencapai ${gasValue} PPM.`;
     }
 
     // 4. Jika ada peringatan, kirim WhatsApp
